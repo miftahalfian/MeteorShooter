@@ -1,5 +1,6 @@
 #include "HelloWorldScene.h"
 #include "AppDelegate.h"
+#include "GameOver.h"
 
 USING_NS_CC;
 
@@ -39,8 +40,9 @@ bool HelloWorld::init()
 	//buat Sprite untuk meriam
 	meriam = Sprite::create("meriam.png");
 	meriam->setPosition(Vec2(384 + AddX, 220 + AddY));
+	meriam->setRotation(-90);
 	this->addChild(meriam, 1);
-	//1 = z order. Secara default z order = 0. z order bwt mengurutkan tampilan dlm layer. 0 = paling bawah, 1 = diatas 0, dst.
+	//1 = z order. Secara default z order = 0. z order bwt mengurutkan tampilan dlm layer. 0 = paling bawah, 1 = diatasnya 0, dst.
 
 	//membuat Sprite gambar hati
 	Sprite* live = Sprite::create("hati.png");
@@ -49,7 +51,8 @@ bool HelloWorld::init()
 
 	//membuat label nyawa
 	label_nyawa = Label::createWithTTF("x5", "fonts/arial.ttf", 48);
-	label_nyawa->setAnchorPoint(Vec2::ANCHOR_MIDDLE_LEFT); //anchor point = titik tumpuan. anchor_middle_left, berarti titik tumpuan di kiri tengah
+	//anchor point = titik tumpuan. anchor_middle_left, berarti titik tumpuan di kiri tengah
+	label_nyawa->setAnchorPoint(Vec2::ANCHOR_MIDDLE_LEFT);
 	label_nyawa->setPosition(Vec2(105, visibleSize.height - 60));
 	label_nyawa->setTextColor(Color4B::BLACK);
 	label_nyawa->enableOutline(Color4B::WHITE, 3);
@@ -61,18 +64,6 @@ bool HelloWorld::init()
 	label_score->setTextColor(Color4B::BLACK);
 	label_score->enableOutline(Color4B::WHITE, 3);
 	this->addChild(label_score, 1);
-
-	gameover = Sprite::create("gameover.png");
-	gameover->setPosition(Vec2(384 + AddX, 741 + AddY));
-	gameover->setVisible(false);
-	this->addChild(gameover);
-
-	replay = Button::create("b_replay.png", "b_replay1.png", "b_replay.png");
-	replay->setPosition(Vec2(384 + AddX, 574 + AddY));
-	replay->setVisible(false);
-	replay->setEnabled(false);
-	replay->addClickEventListener(CC_CALLBACK_0(HelloWorld::replayClick, this));
-	this->addChild(replay);
 
 	//listener untuk keyboard atau keypad
 	auto listener_keyboard = EventListenerKeyboard::create();
@@ -112,8 +103,7 @@ bool HelloWorld::onTouchBegan(Touch * touch, Event * event)
 		//harus di-convert ke degrees (derajat) dulu, soalnya hasilnya berbentuk radian
 		float rotation = CC_RADIANS_TO_DEGREES(atan2f(offset.y, offset.x));
 
-		//karena meriamnya otomatis menghadap ke atas, jadi nilai 90 dikurangi variabel rotation
-		meriam->setRotation(90 - rotation);
+		meriam->setRotation(-rotation);
 
 		//buat projectile (peluru)
 		auto projectile = Sprite::create("peluru.png");
@@ -130,7 +120,7 @@ bool HelloWorld::onTouchBegan(Touch * touch, Event * event)
 		Vec2 target = jarak_lontaran + projectile->getPosition();
 
 		auto actionMove = MoveTo::create(2.0f, target); //kecepatan peluru 2 detik
-		auto actionRemove = RemoveSelf::create(); //hancurkan kalo sudah sampai di target
+		auto actionRemove = RemoveSelf::create(); //remove kalo sudah sampai di target
 		projectile->runAction(Sequence::create(actionMove, actionRemove, nullptr));
 		peluru.pushBack(projectile); //masukkan ke dalam Vector peluru
 	}
@@ -152,11 +142,9 @@ void HelloWorld::AddMeteor(float dt)
 
 	//buat animasi komet
 	Vector<SpriteFrame*> animFrames(15);
-	char str[100] = { 0 };
 	for (int i = 1; i <= 3; i++)
 	{
-		sprintf(str, "meteor%d.png", i);
-		auto frame = SpriteFrame::create(str, Rect(0, 0, komet->getContentSize().width, komet->getContentSize().height));
+		auto frame = SpriteFrame::create(String::createWithFormat("meteor%d.png", i)->getCString(), Rect(0, 0, komet->getContentSize().width, komet->getContentSize().height));
 		animFrames.pushBack(frame);
 	}
 
@@ -224,37 +212,9 @@ void HelloWorld::update(float dt)
 void HelloWorld::MeteorPass(Sprite * komet)
 {
 	//buat efek ledakan
-	EfekLedakan(komet->getPosition());
-
-	//hapus meteor
-	komet->removeFromParent();
-	meteor.eraseObject(komet);
-
-	if (nyawa > 0) {
-		//nyawa di kurangi, dan tampilkan
-		nyawa--;
-		label_nyawa->setString(String::createWithFormat("x%d", nyawa)->getCString());
-	}
-	else {
-		//kalau nyawa sama dengan 0, maka tampilkan gameover
-
-		//hentikan penambahan meteor
-		this->unschedule(schedule_selector(HelloWorld::AddMeteor));
-		//hentikan fungsi update
-		this->unscheduleUpdate();
-
-		//munculkan sprite gameover dan replay
-		gameover->setVisible(true);
-		replay->setVisible(true);
-		replay->setEnabled(true);
-	}
-}
-
-void HelloWorld::EfekLedakan(Vec2 position)
-{
 	//buat sprite animasi meledak
 	auto sprite = Sprite::create("meledak1.png");
-	sprite->setPosition(position);
+	sprite->setPosition(komet->getPosition());
 	Vector<SpriteFrame*> animFrames(15);
 	for (int k = 1; k <= 4; k++)
 	{
@@ -270,52 +230,17 @@ void HelloWorld::EfekLedakan(Vec2 position)
 	//mainkan sound effect ledakan
 	SimpleAudioEngine::getInstance()->playEffect("sound/explosion.mp3");
 
-	//efek goncangan layar
-	float interval = 0.f;
-	float duration = 0.5f;
-	float speed = 6.0f;
-	float magnitude = 2.0f;
+	//hapus meteor
+	komet->removeFromParent();
+	meteor.eraseObject(komet);
 
-	static float elapsed = 0.f;
-
-	this->schedule([=](float dt) {
-		float randomStart = random(-1000.0f, 1000.0f);
-		elapsed += dt;
-
-		float percentComplete = elapsed / duration;
-
-		// We want to reduce the shake from full power to 0 starting half way through
-		float damper = 1.0f - clampf(2.0f * percentComplete - 1.0f, 0.0f, 1.0f);
-
-		// Calculate the noise parameter starting randomly and going as fast as speed allows
-		float alpha = randomStart + speed * percentComplete;
-
-		// map noise to [-1, 1]
-		float x = noise(alpha, 0.0f) * 2.0f - 1.0f;
-		float y = noise(0.0f, alpha) * 2.0f - 1.0f;
-
-		x *= magnitude * damper;
-		y *= magnitude * damper;
-		this->setPosition(x, y);
-
-		if (elapsed >= duration)
-		{
-			elapsed = 0;
-			this->unschedule("Shake");
-			this->setPosition(Vec2::ZERO);
-		}
-
-	}, interval, CC_REPEAT_FOREVER, 0.f, "Shake");
-}
-
-float HelloWorld::noise(int x, int y)
-{
-	int n = x + y * 57;
-	n = (n << 13) ^ n;
-	return (1.0 - ((n * ((n * n * 15731) + 789221) + 1376312589) & 0x7fffffff) / 1073741824.0);
-}
-
-void HelloWorld::replayClick()
-{
-	Director::getInstance()->replaceScene(HelloWorld::createScene());
+	if (nyawa > 0) {
+		//nyawa di kurangi, dan tampilkan
+		nyawa--;
+		label_nyawa->setString(String::createWithFormat("x%d", nyawa)->getCString());
+	}
+	else {
+		//kalau nyawa sama dengan 0, maka tampilkan gameover
+		Director::getInstance()->replaceScene(GameOver::createScene());
+	}
 }

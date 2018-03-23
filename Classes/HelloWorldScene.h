@@ -20,10 +20,6 @@ private:
 
 	Sprite* meriam;
 
-	//tampilan gameover
-	Sprite* gameover;
-	Button* replay;
-
 	int score = 0;
 	int nyawa = 5;
 
@@ -31,9 +27,6 @@ private:
 	float AddY = 0;
 
 	void MeteorPass(Sprite* komet);
-	void EfekLedakan(Vec2 position);
-	float noise(int x, int y);
-	void replayClick();
 public:
     static cocos2d::Scene* createScene();
 
@@ -41,6 +34,7 @@ public:
 	virtual void onKeyReleased(EventKeyboard::KeyCode keyCode, Event* event);
 
 	bool onTouchBegan(Touch* touch, Event* event);
+
 	void AddMeteor(float dt);
 	void update(float dt);
     
